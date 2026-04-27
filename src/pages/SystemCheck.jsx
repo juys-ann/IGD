@@ -12,20 +12,20 @@ function CheckRow({ icon: Icon, label, status, detail }) {
     pass:    { dot: 'bg-teal-400',   text: 'text-teal-600',  Icon: CheckCircle2,  label: 'Available'   },
     fail:    { dot: 'bg-rose-400',   text: 'text-rose-600',  Icon: XCircle,       label: 'Unavailable' },
     warn:    { dot: 'bg-amber-400',  text: 'text-amber-600', Icon: AlertCircle,   label: 'Limited'     },
-    loading: { dot: 'bg-stone-300',  text: 'text-stone-400', Icon: Loader2,       label: 'Checking…'   },
+    loading: { dot: 'bg-[#c9b99a]',  text: 'text-[#b09070]', Icon: Loader2,       label: 'Checking…'   },
   }
   const cfg = configs[status] ?? configs.loading
   const StatusIcon = cfg.Icon
 
   return (
-    <div className="flex items-center justify-between py-4 border-b border-stone-50 last:border-0">
+    <div className="flex items-center justify-between py-4 border-b border-[#f0e8da] last:border-0">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-stone-50 flex items-center justify-center shrink-0">
-          <Icon size={16} className="text-stone-400" />
+        <div className="w-9 h-9 rounded-xl bg-[#f4ecd8] flex items-center justify-center shrink-0">
+          <Icon size={16} className="text-[#b09070]" />
         </div>
         <div>
-          <p className="text-sm font-medium text-stone-800">{label}</p>
-          {detail && <p className="text-xs text-stone-400 mt-0.5">{detail}</p>}
+          <p className="text-sm font-medium text-[#3b2a1a]">{label}</p>
+          {detail && <p className="text-xs text-[#b09070] mt-0.5">{detail}</p>}
         </div>
       </div>
       <div className={`flex items-center gap-1.5 text-xs font-medium ${cfg.text}`}>
@@ -156,7 +156,7 @@ export default function SystemCheck() {
     : 'warn'
 
   const AI_STATUS = {
-    idle:    { label: 'Not started',   color: 'text-stone-400',  bg: 'bg-stone-100'  },
+    idle:    { label: 'Not started',   color: 'text-[#b09070]',  bg: 'bg-[#e8d5b7]'  },
     loading: { label: 'Initialising…', color: 'text-amber-600',  bg: 'bg-amber-50'   },
     ready:   { label: 'Online',        color: 'text-teal-600',   bg: 'bg-teal-50'    },
     error:   { label: 'Error',         color: 'text-rose-600',   bg: 'bg-rose-50'    },
@@ -168,8 +168,8 @@ export default function SystemCheck() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-display font-semibold text-stone-800">Engine Status</h1>
-        <p className="text-stone-400 mt-1 text-sm">
+        <h1 className="text-2xl font-display font-semibold text-[#3b2a1a]">Engine Status</h1>
+        <p className="text-[#b09070] mt-1 text-sm">
           Live diagnostics for your local AI environment. All processing stays on this device.
         </p>
       </div>
@@ -179,23 +179,23 @@ export default function SystemCheck() {
         ${overallStatus === 'pass'    ? 'bg-teal-50 border-teal-100'  :
           overallStatus === 'fail'    ? 'bg-rose-50 border-rose-100'  :
           overallStatus === 'warn'    ? 'bg-amber-50 border-amber-100' :
-          'bg-stone-50 border-stone-100'}`}
+          'bg-[#f4ecd8] border-[#e8d5b7]'}`}
       >
         {overallStatus === 'loading'
-          ? <Loader2 size={18} className="text-stone-400 animate-spin shrink-0" />
+          ? <Loader2 size={18} className="text-[#b09070] animate-spin shrink-0" />
           : overallStatus === 'pass'
           ? <CheckCircle2 size={18} className="text-teal-500 shrink-0" />
           : overallStatus === 'fail'
           ? <XCircle size={18} className="text-rose-500 shrink-0" />
           : <AlertCircle size={18} className="text-amber-500 shrink-0" />}
         <div>
-          <p className="text-sm font-semibold text-stone-800">
+          <p className="text-sm font-semibold text-[#3b2a1a]">
             {overallStatus === 'loading' ? 'Running diagnostics…'
               : overallStatus === 'pass' ? 'All systems operational'
               : overallStatus === 'fail' ? 'Critical issue detected'
               : 'Ready with warnings'}
           </p>
-          <p className="text-xs text-stone-400 mt-0.5">
+          <p className="text-xs text-[#b09070] mt-0.5">
             {overallStatus === 'pass'
               ? 'Your device supports all local AI features.'
               : 'Some features may be limited. Check the details below.'}
@@ -204,7 +204,7 @@ export default function SystemCheck() {
       </div>
 
       {/* Capability checks */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-5 divide-y divide-stone-50">
+      <div className="bg-[#fff] rounded-2xl border border-[#e8d5b7] shadow-sm px-5 divide-y divide-[#f0e8da]">
         <CheckRow icon={Cpu}       label="WebGPU Acceleration" status={checks.webgpu}  detail={details.webgpu}  />
         <CheckRow icon={Cpu}       label="WebAssembly Runtime" status={checks.wasm}    detail={details.wasm}    />
         <CheckRow icon={Database}  label="Local Database"      status={checks.idb}     detail={details.idb}     />
@@ -213,21 +213,21 @@ export default function SystemCheck() {
       </div>
 
       {/* AI Engine status */}
-      <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5 space-y-3">
+      <div className="bg-[#fff] rounded-2xl border border-[#e8d5b7] shadow-sm p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles size={15} className="text-teal-400" />
-            <p className="text-sm font-semibold text-stone-800">AI Engine</p>
+            <p className="text-sm font-semibold text-[#3b2a1a]">AI Engine</p>
           </div>
           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${aiCfg.bg} ${aiCfg.color}`}>
             {aiCfg.label}
           </span>
         </div>
-        <p className="text-xs text-stone-400 leading-relaxed">
+        <p className="text-xs text-[#b09070] leading-relaxed">
           LaMini-Flan-T5-248M · Runs entirely in your browser via WebAssembly.
           Initialize the Echo Chamber to load the model.
         </p>
-        <div className="flex items-center gap-1.5 text-[11px] text-stone-300">
+        <div className="flex items-center gap-1.5 text-[11px] text-[#c9b99a]">
           <ShieldCheck size={11} className="text-teal-400" />
           No data ever leaves your device
         </div>
@@ -235,17 +235,17 @@ export default function SystemCheck() {
 
       {/* Database stats */}
       {dbStats && (
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm p-5">
-          <p className="text-sm font-semibold text-stone-800 mb-4">Storage Summary</p>
+        <div className="bg-[#fff] rounded-2xl border border-[#e8d5b7] shadow-sm p-5">
+          <p className="text-sm font-semibold text-[#3b2a1a] mb-4">Storage Summary</p>
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Journal Entries', value: dbStats.journals },
               { label: 'AI Messages',     value: dbStats.messages },
               { label: 'Conversations',   value: dbStats.sessions },
             ].map(({ label, value }) => (
-              <div key={label} className="bg-stone-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-semibold text-stone-800">{value}</p>
-                <p className="text-[11px] text-stone-400 mt-0.5">{label}</p>
+              <div key={label} className="bg-[#f4ecd8] rounded-xl p-3 text-center">
+                <p className="text-xl font-semibold text-[#3b2a1a]">{value}</p>
+                <p className="text-[11px] text-[#b09070] mt-0.5">{label}</p>
               </div>
             ))}
           </div>

@@ -219,7 +219,7 @@ export default function BehavioralForesight() {
                 </div>
                 <div className="flex items-center gap-4 text-[10px]" style={{ color: '#b09070' }}>
                   <span className="flex items-center gap-1">
-                    <span className="w-6 border-t-2 border-stone-400 inline-block" /> History
+                    <span className="w-6 border-t-2 border-[#b09070] inline-block" /> History
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="w-6 border-t-2 border-indigo-400 inline-block"

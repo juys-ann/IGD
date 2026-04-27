@@ -11,7 +11,7 @@ const MOOD_MAP = {
   joyful:    { Icon: Smile,  color: 'text-amber-600',  label: 'Joyful'    },
   calm:      { Icon: Moon,   color: 'text-teal-600',   label: 'Calm'      },
   energised: { Icon: Zap,    color: 'text-indigo-600', label: 'Energised' },
-  neutral:   { Icon: Meh,    color: 'text-stone-500',  label: 'Neutral'   },
+  neutral:   { Icon: Meh,    color: 'text-[#9a7550]',  label: 'Neutral'   },
   low:       { Icon: Frown,  color: 'text-rose-600',   label: 'Low'       },
 }
 
@@ -116,7 +116,7 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-[#3b2a1a]/50 backdrop-blur-sm z-40"
         onClick={handleClose}
         aria-hidden="true"
       />
@@ -256,7 +256,7 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
                     : {}
                   }
                 >
-                  <Icon size={15} className={active ? color : 'text-stone-400'} />
+                  <Icon size={15} className={active ? color : 'text-[#c9b99a]'} />
                 </button>
               )
             })}

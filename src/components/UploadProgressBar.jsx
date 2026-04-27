@@ -13,17 +13,25 @@ export default function UploadProgressBar({ current, total, label }) {
     <div className="space-y-2">
       {/* Label row */}
       <div className="flex items-center justify-between text-xs">
-        <span className="text-stone-500 font-medium">{label ?? `Processing files…`}</span>
-        <span className="font-mono text-stone-400">
+        <span className="font-medium" style={{ color: '#7a4f2a' }}>
+          {label ?? 'Processing files…'}
+        </span>
+        <span className="font-mono" style={{ color: '#b09070' }}>
           {current} / {total} &nbsp;·&nbsp; {pct}%
         </span>
       </div>
 
       {/* Track */}
-      <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
+      <div
+        className="h-2 w-full rounded-full overflow-hidden"
+        style={{ background: '#e8d5b7' }}
+      >
         <div
-          className="h-full bg-gradient-to-r from-teal-400 to-teal-500 rounded-full transition-all duration-300 ease-out"
-          style={{ width: `${pct}%` }}
+          className="h-full rounded-full transition-all duration-300 ease-out"
+          style={{
+            width: `${pct}%`,
+            background: 'linear-gradient(to right, #c27a2a, #d4956a)',
+          }}
         />
       </div>
     </div>

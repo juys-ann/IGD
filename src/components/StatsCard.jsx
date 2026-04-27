@@ -5,14 +5,19 @@ import { useAuth } from '../context/AuthContext'
 
 function StatTile({ icon: Icon, color, label, value, loading, hidden }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-stone-100 shadow-sm">
-      <Icon size={18} className={`${color} mb-3`} />
-      <div className="text-2xl font-semibold text-stone-800 h-8 flex items-center">
-        {hidden  ? <span className="text-stone-200 text-lg">—</span>
-        : loading ? <Loader2 size={18} className="text-stone-300 animate-spin" />
-        : value}
+    <div
+      className="rounded-2xl p-5"
+      style={{ background: '#fff', border: '1px solid #e8d5b7', boxShadow: '0 1px 4px #d4b89618' }}
+    >
+      <Icon size={18} style={{ color, marginBottom: '12px' }} />
+      <div className="text-2xl font-semibold h-8 flex items-center" style={{ color: '#3b2a1a' }}>
+        {hidden
+          ? <span style={{ color: '#e8d5b7', fontSize: '18px' }}>—</span>
+          : loading
+          ? <Loader2 size={18} className="animate-spin" style={{ color: '#d4b896' }} />
+          : value}
       </div>
-      <div className="text-xs text-stone-400 mt-1">{label}</div>
+      <div className="text-xs mt-1" style={{ color: '#b09070' }}>{label}</div>
     </div>
   )
 }
@@ -28,10 +33,10 @@ export default function StatsCard() {
   const isLoading = journalCount === undefined
 
   const stats = [
-    { icon: BookMarked,    color: 'text-teal-500',   label: 'Journal Entries', value: journalCount ?? 0 },
-    { icon: Share2,        color: 'text-indigo-400', label: 'Memory Links',    value: graphCount   ?? 0 },
-    { icon: MessageCircle, color: 'text-amber-400',  label: 'AI Messages',     value: messageCount ?? 0 },
-    { icon: TrendingUp,    color: 'text-rose-400',   label: 'Conversations',   value: sessionCount ?? 0 },
+    { icon: BookMarked,    color: '#0d9488', label: 'Journal Entries', value: journalCount ?? 0 },
+    { icon: Share2,        color: '#818cf8', label: 'Memory Links',    value: graphCount   ?? 0 },
+    { icon: MessageCircle, color: '#c27a2a', label: 'AI Messages',     value: messageCount ?? 0 },
+    { icon: TrendingUp,    color: '#f43f5e', label: 'Conversations',   value: sessionCount ?? 0 },
   ]
 
   return (

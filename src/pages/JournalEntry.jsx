@@ -46,7 +46,7 @@ const EMOTION_COLORS = {
 const SAVE_STATUS = {
   idle:    { text: '',             Icon: null,       cls: '' },
   pending: { text: 'Unsaved…',    Icon: Loader2,    cls: 'text-amber-500' },
-  saving:  { text: 'Saving…',     Icon: Loader2,    cls: 'text-stone-400' },
+  saving:  { text: 'Saving…',     Icon: Loader2,    cls: 'text-[#b09070]' },
   saved:   { text: 'Saved',       Icon: null,       cls: 'text-teal-500' },
   error:   { text: 'Save failed', Icon: null,       cls: 'text-rose-500' },
 }
