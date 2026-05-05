@@ -5,13 +5,17 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { updateEntry } from '../db'
+import { getTextareaStyle, DEFAULT_WRITING_STYLE } from './WritingToolbar'
+import { getPagePattern } from './PageStyleToolbar'
+
+const DEFAULT_PAGE_STYLE = { orientation: 'portrait', ruleStyle: 'blank', pageColor: '#ffffff' }
 
 // ── Mood display ──────────────────────────────────────────────────────────────
 const MOOD_MAP = {
   joyful:    { Icon: Smile,  color: 'text-amber-600',  label: 'Joyful'    },
   calm:      { Icon: Moon,   color: 'text-teal-600',   label: 'Calm'      },
   energised: { Icon: Zap,    color: 'text-indigo-600', label: 'Energised' },
-  neutral:   { Icon: Meh,    color: 'text-[#9a7550]',  label: 'Neutral'   },
+  neutral:   { Icon: Meh,    color: 'text-stone-500',  label: 'Neutral'   },
   low:       { Icon: Frown,  color: 'text-rose-600',   label: 'Low'       },
 }
 
@@ -90,12 +94,18 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
     setSaveStatus('saving')
     try {
       await updateEntry(entry.id, {
-        title:   editTitle   || 'Untitled Entry',
-        content: editContent,
-        mood:    editMood,
+        title:    editTitle   || 'Untitled Entry',
+        content:  editContent,
+        mood:     editMood,
+        // Preserve all design fields including draggable assets
+        elements: entry.elements ?? [],
       })
       setSaveStatus('saved')
-      onSaved?.({ ...entry, title: editTitle, content: editContent, mood: editMood })
+      onSaved?.({
+        ...entry,
+        title: editTitle, content: editContent, mood: editMood,
+        elements: entry.elements ?? [],
+      })
       setTimeout(() => {
         setSaveStatus('idle')
         setIsEditing(false)
@@ -116,7 +126,7 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-[#3b2a1a]/50 backdrop-blur-sm z-40"
+        className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-40"
         onClick={handleClose}
         aria-hidden="true"
       />
@@ -131,13 +141,27 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
                    overflow-hidden"
         style={{
           animation: 'modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-          backgroundColor: '#f4ecd8',         /* parchment base */
-          backgroundImage: `
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")
-          `,
+          // Use the entry's actual page color so the modal matches the journal
+          backgroundColor: entry.pageStyle?.pageColor ?? '#f4ecd8',
           border: '1px solid #d4b896',
         }}
       >
+        {/* ── Cover image banner (if entry has one) ─────────────────────── */}
+        {entry.coverImage && (
+          <div
+            className="w-full shrink-0"
+            style={{
+              height: '72px',
+              backgroundImage:    `url(${entry.coverImage})`,
+              backgroundSize:     'cover',
+              backgroundPosition: 'center',
+            }}
+          />
+        )}
+        {!entry.coverImage && entry.coverColor && (
+          <div className="w-full shrink-0" style={{ height: '5px', background: entry.coverColor }} />
+        )}
+
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div
           className="flex items-start justify-between px-7 py-5 shrink-0"
@@ -256,7 +280,7 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
                     : {}
                   }
                 >
-                  <Icon size={15} className={active ? color : 'text-[#c9b99a]'} />
+                  <Icon size={15} className={active ? color : 'text-stone-400'} />
                 </button>
               )
             })}
@@ -268,45 +292,109 @@ export default function MemoryViewerModal({ entry, onClose, onSaved }) {
           </div>
         )}
 
-        {/* ── Body ───────────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-7 py-6">
-          {isEditing ? (
-            <textarea
-              ref={textareaRef}
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="w-full h-full min-h-64 bg-transparent outline-none resize-none
-                         text-sm leading-8"
-              style={{
-                color: '#3b2a1a',
-                fontFamily: '"DM Sans", system-ui, sans-serif',
-              }}
-              placeholder="Write your memory…"
-            />
-          ) : (
-            <div className="space-y-3">
-              {entry.content
-                ? entry.content
-                    .split('\n')
-                    .filter(Boolean)
-                    .map((para, i) => (
-                      <p
-                        key={i}
-                        className="text-sm leading-8"
-                        style={{ color: '#3b2a1a' }}
-                      >
-                        {para}
-                      </p>
-                    ))
-                : (
-                  <p className="text-sm italic" style={{ color: '#b09070' }}>
-                    No content in this entry.
-                  </p>
+        {/* ── Body — applies entry's writingStyle + pageStyle pattern ──── */}
+        {(() => {
+          const wStyle = entry.writingStyle
+            ? { ...DEFAULT_WRITING_STYLE, ...entry.writingStyle }
+            : DEFAULT_WRITING_STYLE
+          const pStyle = entry.pageStyle
+            ? { ...DEFAULT_PAGE_STYLE, ...entry.pageStyle }
+            : DEFAULT_PAGE_STYLE
+          const textStyle    = getTextareaStyle(wStyle)
+          const patternStyle = getPagePattern(pStyle.ruleStyle)
+          const assets       = entry.elements ?? []
+
+          return (
+            <div
+              className="flex-1 overflow-y-auto px-7 py-6"
+              style={{ position: 'relative', ...patternStyle }}
+            >
+              {/* ── Read-only draggable assets (photos, stickies, stickers) */}
+              {assets.map((el) => {
+                const base = {
+                  position: 'absolute',
+                  left: el.x ?? 0,
+                  top:  el.y ?? 0,
+                  zIndex: 10,
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                }
+
+                if (el.type === 'photo') return (
+                  <div key={el.id} style={{ ...base, width: el.width ?? 200 }}>
+                    <img
+                      src={el.src}
+                      alt="attached"
+                      draggable={false}
+                      style={{
+                        width: '100%', display: 'block',
+                        borderRadius: 6,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.22)',
+                      }}
+                    />
+                  </div>
                 )
-              }
+
+                if (el.type === 'sticky') return (
+                  <div key={el.id} style={{
+                    ...base,
+                    width: 180, minHeight: 150,
+                    background: el.color,
+                    boxShadow: '3px 5px 16px rgba(0,0,0,0.18)',
+                    borderRadius: '2px 2px 2px 24px',
+                    padding: '8px',
+                    overflow: 'hidden',
+                  }}>
+                    <p style={{
+                      fontFamily: '"Caveat", cursive', fontSize: 15,
+                      color: '#3b2a1a', lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap', margin: 0,
+                    }}>
+                      {el.text || ''}
+                    </p>
+                  </div>
+                )
+
+                if (el.type === 'sticker') return (
+                  <div key={el.id} style={{ ...base, lineHeight: 1 }}>
+                    <span style={{ fontSize: el.size ?? 38, display: 'block' }}>{el.emoji}</span>
+                  </div>
+                )
+
+                return null
+              })}
+
+              {isEditing ? (
+                <textarea
+                  ref={textareaRef}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full h-full min-h-64 bg-transparent outline-none resize-none"
+                  style={{ ...textStyle, minHeight: '256px', position: 'relative', zIndex: 1 }}
+                  placeholder="Write your memory…"
+                />
+              ) : (
+                <div className="space-y-2" style={{ position: 'relative', zIndex: 1 }}>
+                  {entry.content
+                    ? entry.content
+                        .split('\n')
+                        .filter(Boolean)
+                        .map((para, i) => (
+                          <p key={i} style={{ ...textStyle, margin: 0 }}>
+                            {para}
+                          </p>
+                        ))
+                    : (
+                      <p style={{ fontSize: '13px', color: '#b09070', fontStyle: 'italic' }}>
+                        No content in this entry.
+                      </p>
+                    )
+                  }
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          )
+        })()}
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div

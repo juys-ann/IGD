@@ -21,7 +21,7 @@ export default function Sidebar() {
   return (
     <aside
       className="w-60 h-screen flex flex-col overflow-hidden"
-      style={{ background: '#f4ecd8', borderRight: '1px solid #d4b896' }}
+      style={{ background: 'rgba(244,236,216,0.82)', borderRight: '1px solid #d4b896', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
       {/* Brand */}
       <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid #d4b896' }}>

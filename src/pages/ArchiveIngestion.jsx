@@ -35,37 +35,79 @@ const MOOD_EMOJI = {
 }
 
 // ── Journal Card (grid item) ───────────────────────────────────────────────────
+// Shows cover image/color, page color, rule style indicator, and element count
+// so the archive card visually matches what the user set up in the journal page.
 function JournalCard({ entry, onView, onDelete }) {
-  const topEmotions = (entry.emotions ?? []).slice(0, 2)
-  const words       = wordCount(entry.content)
-  const isUploaded  = entry.source === 'uploaded'
+  const topEmotions  = (entry.emotions ?? []).slice(0, 2)
+  const words        = wordCount(entry.content)
+  const isUploaded   = entry.source === 'uploaded'
+  const hasCoverImg  = !!entry.coverImage
+  const hasCoverClr  = !!entry.coverColor
+  const pageColor    = entry.pageStyle?.pageColor ?? '#f4ecd8'
+  const ruleStyle    = entry.pageStyle?.ruleStyle ?? 'blank'
+  const elementCount = (entry.elements ?? []).length
+
+  // Rule style label shown as a tiny badge
+  const RULE_LABELS = { blank: null, lines: 'Lined', dotgrid: 'Dot Grid', grid: 'Grid' }
+  const ruleLabel   = RULE_LABELS[ruleStyle]
 
   return (
     <div
       onClick={() => onView(entry)}
       className="group relative flex flex-col rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg overflow-hidden"
-      style={{ background: '#f4ecd8', border: '1px solid #d4b896', minHeight: '180px' }}
+      style={{ background: pageColor, border: '1px solid #d4b896', minHeight: '180px' }}
     >
-      {/* Source stripe at top */}
-      <div
-        className="h-1.5 w-full shrink-0"
-        style={{ background: isUploaded ? '#9a7550' : '#c27a2a' }}
-      />
+      {/* Cover: image banner OR color stripe */}
+      {hasCoverImg ? (
+        <div
+          className="w-full shrink-0"
+          style={{
+            height: '52px',
+            backgroundImage:    `url(${entry.coverImage})`,
+            backgroundSize:     'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      ) : (
+        <div
+          className="h-1.5 w-full shrink-0"
+          style={{ background: hasCoverClr ? entry.coverColor : (isUploaded ? '#9a7550' : '#c27a2a') }}
+        />
+      )}
 
       {/* Card body */}
       <div className="flex-1 flex flex-col p-4 gap-2">
 
-        {/* Source badge + mood */}
-        <div className="flex items-center justify-between">
-          <span
-            className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
-            style={{
-              background: isUploaded ? '#e8d5b780' : '#c27a2a22',
-              color:      isUploaded ? '#9a7550'   : '#c27a2a',
-            }}
-          >
-            {isUploaded ? 'Uploaded' : 'Written'}
-          </span>
+        {/* Source badge + mood + rule label */}
+        <div className="flex items-center justify-between gap-1 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
+              style={{
+                background: isUploaded ? '#e8d5b780' : '#c27a2a22',
+                color:      isUploaded ? '#9a7550'   : '#c27a2a',
+              }}
+            >
+              {isUploaded ? 'Uploaded' : 'Written'}
+            </span>
+            {ruleLabel && (
+              <span
+                className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(0,0,0,0.06)', color: '#9a7550' }}
+              >
+                {ruleLabel}
+              </span>
+            )}
+            {elementCount > 0 && (
+              <span
+                className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(0,0,0,0.06)', color: '#9a7550' }}
+                title={`${elementCount} attached element${elementCount > 1 ? 's' : ''}`}
+              >
+                📎 {elementCount}
+              </span>
+            )}
+          </div>
           {entry.mood && (
             <span className="text-base" title={entry.mood}>
               {MOOD_EMOJI[entry.mood] ?? '📝'}
@@ -84,7 +126,7 @@ function JournalCard({ entry, onView, onDelete }) {
         {/* Snippet */}
         {entry.content && (
           <p className="text-[11px] leading-relaxed line-clamp-3 flex-1"
-            style={{ color: '#9a7550' }}>
+            style={{ color: '#7a5c3a' }}>
             {entry.content.slice(0, 120)}
           </p>
         )}
@@ -109,11 +151,11 @@ function JournalCard({ entry, onView, onDelete }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 mt-auto"
-          style={{ borderTop: '1px solid #e8d5b7' }}>
-          <span className="text-[11px]" style={{ color: '#b09070' }}>
+          style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <span className="text-[11px]" style={{ color: '#9a7550' }}>
             {fmtDate(entry.timestamp)}
           </span>
-          <span className="text-[11px]" style={{ color: '#b09070' }}>
+          <span className="text-[11px]" style={{ color: '#9a7550' }}>
             {words > 0 ? `${words} words` : ''}
           </span>
         </div>

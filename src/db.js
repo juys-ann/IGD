@@ -56,10 +56,26 @@ db.version(7).stores({
   goals:        '++id, createdAt',
 })
 
+// v8 — journals now persist draggable assets (photos, stickies, stickers)
+//      stored as JSON in the `elements` field — no new index needed
+db.version(8).stores({
+  journals:     '++id, title, timestamp, mood, source',
+  graphLinks:   '++id, journalId, entityName, type',
+  chatSessions: '++id, title, createdAt, updatedAt',
+  chatHistory:  '++id, sessionId, role, timestamp',
+  vault:        '++id, role, createdAt',
+  profile:      '++id, createdAt',
+  goals:        '++id, createdAt',
+})
+
 
 // ── Journal helpers ───────────────────────────────────────────────────────────
 
-export async function saveEntry({ title, content, mood = null, timestamp, emotions, source = 'written' }) {
+export async function saveEntry({
+  title, content, mood = null, timestamp, emotions, source = 'written',
+  // Journal design fields (Task 3 / drag-drop assets)
+  coverColor, coverImage, pageStyle, writingStyle, elements,
+}) {
   return db.journals.add({
     title:     title || 'Untitled Entry',
     content,
@@ -67,6 +83,12 @@ export async function saveEntry({ title, content, mood = null, timestamp, emotio
     emotions:  emotions ?? [],
     source,                                    // 'written' | 'uploaded'
     timestamp: timestamp ?? new Date().toISOString(),
+    // Persist design + draggable assets — undefined values are omitted automatically
+    ...(coverColor    !== undefined && { coverColor }),
+    ...(coverImage    !== undefined && { coverImage }),
+    ...(pageStyle     !== undefined && { pageStyle }),
+    ...(writingStyle  !== undefined && { writingStyle }),
+    ...(elements      !== undefined && { elements }),
   })
 }
 

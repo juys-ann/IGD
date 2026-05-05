@@ -1,60 +1,47 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import topLevelAwait from 'vite-plugin-top-level-await'
 
 /**
- * vite.config.js — Inter-Generational Dialogue
+ * vite.config.js
  *
- * Now that ai.worker.js loads @xenova/transformers from CDN at runtime,
- * the optimizeDeps.exclude and onnxruntime-web exclusions are no longer
- * the load-bearing fixes — but we keep them as defensive settings so that
- * if anything in the main thread ever imports from @xenova/transformers,
- * it also won't be mangled by esbuild.
+ * COEP fix — why this matters:
  *
- * The COOP / COEP headers are still required: jsDelivr sends
- * Cross-Origin-Resource-Policy: cross-origin on all its responses, so the
- * require-corp COEP policy is satisfied and SharedArrayBuffer stays available.
+ * The app previously used (or defaulted to) COEP: require-corp.
+ * That policy blocks any cross-origin resource that doesn't explicitly
+ * send a Cross-Origin-Resource-Policy: cross-origin header — including
+ * HuggingFace's favicon.ico, which causes:
+ *   ERR_BLOCKED_BY_RESPONSE.NotSameOriginAfterDefaultedToSameOriginByCoep
+ *
+ * Fix: switch to COEP: credentialless.
+ *   - Still satisfies the requirement for SharedArrayBuffer
+ *     (which needs COEP + COOP together).
+ *   - Allows cross-origin resources loaded without credentials
+ *     (images, favicons, CDN assets) to load normally.
+ *   - The Gemini API fetch uses mode:'cors' with explicit credentials:
+ *     'omit' (default), so it is unaffected.
+ *
+ * References:
+ *   https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy
+ *   https://web.dev/cross-origin-isolation-guide/
  */
 export default defineConfig({
-  plugins: [
-    react(),
-    topLevelAwait(),
-  ],
-
-  worker: {
-    format: 'es',
-    plugins: () => [topLevelAwait()],
-  },
-
-  // Defensive: prevents esbuild from mangling these if imported in main thread
-  optimizeDeps: {
-    exclude: ['@xenova/transformers', 'onnxruntime-web'],
-  },
-
-  build: {
-    target: 'esnext',
-  },
-
-  // process.env.NODE_ENV — needed by onnxruntime-web internals in some builds
-  define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
-  },
-
-  assetsInclude: ['**/*.onnx', '**/*.bin'],
+  plugins: [react()],
 
   server: {
     headers: {
-      // Required for SharedArrayBuffer (ONNX multi-thread inference)
-      // jsDelivr sends CORP: cross-origin so require-corp is satisfied
-      'Cross-Origin-Opener-Policy':   'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
+      // credentialless — allows cross-origin no-credential resources (favicons, CDN)
+      // while still enabling SharedArrayBuffer / WebAssembly threads
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+
+      // required alongside COEP to achieve cross-origin isolation
+      'Cross-Origin-Opener-Policy': 'same-origin',
     },
   },
 
   preview: {
     headers: {
+      'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Opener-Policy':   'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
 })

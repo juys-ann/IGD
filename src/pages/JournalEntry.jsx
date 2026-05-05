@@ -46,7 +46,7 @@ const EMOTION_COLORS = {
 const SAVE_STATUS = {
   idle:    { text: '',             Icon: null,       cls: '' },
   pending: { text: 'Unsaved…',    Icon: Loader2,    cls: 'text-amber-500' },
-  saving:  { text: 'Saving…',     Icon: Loader2,    cls: 'text-[#b09070]' },
+  saving:  { text: 'Saving…',     Icon: Loader2,    cls: 'text-stone-400' },
   saved:   { text: 'Saved',       Icon: null,       cls: 'text-teal-500' },
   error:   { text: 'Save failed', Icon: null,       cls: 'text-rose-500' },
 }
@@ -334,10 +334,25 @@ export default function JournalEntry() {
     })
   }, [title, content, getExtra, persist])
 
+  // Task 3.5 — element drag / edit / delete handler
+  // Receives either a setter fn or a new array from ElementLayer
+  const handleElementsChange = useCallback((updater) => {
+    setElements(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      // Debounce persist so rapid drag moves don't flood the DB
+      clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        persist(title, content, { ...getExtra(), elements: next })
+      }, 800)
+      return next
+    })
+  }, [title, content, getExtra, persist])
+
   // Page dimensions based on orientation
   const isLandscape = pageStyle.orientation === 'landscape'
-  const pageWidth   = isLandscape ? '900px' : '680px'
-  const pageMaxW    = isLandscape ? '900px' : '680px'
+  // Responsive: clamp so the page never overflows its container
+  const pageWidth   = '100%'
+  const pageMaxW    = isLandscape ? 'min(900px, 100%)' : 'min(680px, 100%)'
 
   const { text: statusText, Icon: StatusIcon, cls: statusCls } = SAVE_STATUS[saveStatus]
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0
@@ -472,9 +487,9 @@ export default function JournalEntry() {
             </div>
           </div>
 
-          {/* Writing area */}
+          {/* Writing area — outer scroll container */}
           <div
-            className="flex-1 overflow-y-auto flex flex-col items-center py-8 px-4"
+            className="flex-1 overflow-y-auto flex flex-col items-center py-8 px-4 min-w-0"
             style={{ background: '#e8e0d4' }}
           >
             {isLoading ? (
@@ -482,23 +497,22 @@ export default function JournalEntry() {
                 <Loader2 size={22} className="animate-spin" style={{ color: '#d4b896' }} />
               </div>
             ) : (
+              /* Paper sheet — flex-col so footer is always pinned to bottom */
               <div
                 className="w-full flex flex-col shadow-xl"
                 style={{
-                  maxWidth:      pageMaxW,
-                  width:         pageWidth,
-                  minHeight:     '100%',
+                  maxWidth:  pageMaxW,
+                  width:     pageWidth,
+                  /* flex: 1 0 auto makes the paper grow to at least fill the
+                     scroll container, pushing the footer to the very bottom */
+                  flex:      '1 0 auto',
                   background:    pageStyle.pageColor,
                   borderRadius:  '3px',
                   border:        '1px solid #ddd6c8',
                   boxShadow:     '0 4px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)',
-                  // Task 3.2 — cover strip at top
                   borderTop:     (coverColor || coverImage)
                     ? `6px solid ${coverColor ?? 'transparent'}`
                     : '1px solid #ddd6c8',
-                  backgroundImage: coverImage
-                    ? undefined
-                    : undefined,
                   transition: 'max-width 0.3s ease, border-top 0.2s ease',
                 }}
               >
@@ -542,27 +556,44 @@ export default function JournalEntry() {
                   )}
                 </div>
 
-                {/* Writing area with ElementLayer (Task 3.5) */}
-                <div className="flex-1 px-10 py-6 relative">
-                  <ElementLayer elements={elements} onChange={setElements}>
-                    <textarea
-                      ref={textareaRef}
-                      value={content}
-                      onChange={handleContentChange}
-                      placeholder="Begin writing… your thoughts are saved automatically."
-                      className="w-full bg-transparent outline-none resize-none"
-                      style={{
-                        minHeight:  '520px',
-                        // Task 3.3 — page background pattern
-                        ...getPagePattern(pageStyle.ruleStyle),
-                        // Task 3.4 — writing style
-                        ...getTextareaStyle(writingStyle),
-                      }}
-                    />
-                  </ElementLayer>
+                {/* ── Writing + elements area ──────────────────────────────
+                    Outer div is position:relative so ElementLayer can use
+                    position:absolute to place assets freely over the text. */}
+                <div
+                  className="flex-1 px-10 py-6"
+                  style={{
+                    position:  'relative',
+                    minHeight: '520px',
+                    // Page background pattern (dot grid / lines / grid)
+                    ...getPagePattern(pageStyle.ruleStyle),
+                  }}
+                >
+                  {/* ElementLayer — free-movement drag & drop for all assets.
+                      onChange debounces position updates into the DB. */}
+                  <ElementLayer
+                    elements={elements}
+                    onChange={handleElementsChange}
+                  />
+
+                  {/* Textarea — sits below ElementLayer (z-index:1 vs 10)
+                      Uses a transparent background so pattern shows through. */}
+                  <textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={handleContentChange}
+                    placeholder="Begin writing… your thoughts are saved automatically."
+                    className="w-full bg-transparent outline-none resize-none"
+                    style={{
+                      position:  'relative',
+                      zIndex:    1,
+                      minHeight: '520px',
+                      width:     '100%',
+                      ...getTextareaStyle(writingStyle),
+                    }}
+                  />
                 </div>
 
-                {/* Page footer */}
+                {/* Page footer — always at bottom of paper thanks to flex-col */}
                 <div
                   className="px-10 py-3 shrink-0 flex items-center justify-between"
                   style={{ borderTop: '1px solid #f0ece4' }}

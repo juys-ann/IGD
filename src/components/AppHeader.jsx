@@ -39,7 +39,7 @@ export default function AppHeader({ sidebarOpen, onToggleSidebar }) {
   return (
     <header
       className="h-12 flex items-center gap-3 px-4 shrink-0 border-b relative"
-      style={{ background: '#fdf8f2', borderColor: '#ede5d8' }}
+      style={{ background: 'rgba(253,248,242,0.80)', borderColor: '#ede5d8', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
     >
       {/* Sidebar toggle */}
       <button

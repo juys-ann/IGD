@@ -11,10 +11,10 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Sparkles, SendHorizonal, Loader2, ShieldCheck,
+  Sparkles, SendHorizonal, Loader2,
   AlertTriangle, RefreshCw, BookOpen, MessageCircle,
   Plus, MessageSquare, MoreHorizontal, X, Trash2,
-  ChevronDown, ChevronUp, KeyRound,
+  ChevronDown, ChevronUp, KeyRound, Clock,
 } from 'lucide-react'
 import { useEmbedding } from '../context/EmbeddingContext'
 import { useProfile }   from '../context/ProfileContext'
@@ -31,37 +31,65 @@ import { NavLink } from 'react-router-dom'
 const GEMINI_MODEL = 'gemini-2.0-flash'
 const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
-async function generateWithGemini(apiKey, prompt) {
+// ── Rate-limit guard ─────────────────────────────────────────────────────────
+// Tracks the timestamp of the last successful Gemini request so we can
+// enforce a minimum gap between calls and avoid 429s on the free tier.
+// Free tier: 15 RPM = 1 request per 4 seconds minimum.
+const geminiRateGuard = {
+  lastCallAt: 0,
+  MIN_GAP_MS: 5000,   // 5s between calls ensures we stay safely under 15 RPM
+  retryDelays: [5000, 10000, 20000],  // exponential back-off for 429s
+
+  async wait() {
+    const now  = Date.now()
+    const wait = this.MIN_GAP_MS - (now - this.lastCallAt)
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+    this.lastCallAt = Date.now()
+  },
+}
+
+// onStatus(msg) — called with live status strings during retries
+async function generateWithGemini(apiKey, prompt, onStatus, attempt = 0) {
+  await geminiRateGuard.wait()
+
   const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method:  'POST',
+    mode:    'cors',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }],
-      }],
-      generationConfig: {
-        temperature:     0.8,
-        maxOutputTokens: 512,
-        topP:            0.95,
-      },
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, maxOutputTokens: 600, topP: 0.95 },
       systemInstruction: {
         parts: [{ text:
-          'You are the user\'s past self — a warm, introspective voice that speaks from their own journal entries. ' +
-          'Respond in first person as if recalling memories. Be empathetic, thoughtful, and grounded in what was written. ' +
-          'Keep responses concise (2-4 sentences). Never invent facts not present in the journal context.'
+          'You are the user\'s past self — a warm, introspective voice speaking from their journal entries. ' +
+          'Respond in first person as if recalling memories. Be empathetic and grounded in what was written. ' +
+          'Format responses with short paragraphs (2-3 sentences each, 1-3 paragraphs total). ' +
+          'Never invent facts not present in the journal context.'
         }],
       },
     }),
   })
 
+  // ── 429 — exponential back-off with live countdown ────────────────────────
+  if (res.status === 429) {
+    const delay = geminiRateGuard.retryDelays[attempt]
+    if (delay) {
+      const secs = delay / 1000
+      // Tick countdown so UI can show "Retrying in 3s…"
+      for (let s = secs; s > 0; s--) {
+        onStatus?.(`Rate limit hit — retrying in ${s}s…`)
+        await new Promise((r) => setTimeout(r, 1000))
+      }
+      onStatus?.('Retrying…')
+      return generateWithGemini(apiKey, prompt, onStatus, attempt + 1)
+    }
+    throw new Error('Rate limit reached — Gemini free tier: 15 req/min. Please wait a moment.')
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    if (res.status === 429) {
-      throw new Error('Rate limit reached — Gemini free tier allows 15 requests/min. Please wait a moment and try again.')
-    }
-    if (res.status === 400) {
-      throw new Error('Invalid API key. Please check your Gemini API key in Profile & Settings.')
-    }
+    if (res.status === 400) throw new Error('Invalid API key — check Profile & Settings.')
+    if (res.status === 403) throw new Error('API key lacks Gemini permission. Check billing or key restrictions.')
     throw new Error(err?.error?.message ?? `Gemini API error ${res.status}`)
   }
 
@@ -172,13 +200,20 @@ export default function EchoChamber() {
   const [input,           setInput]           = useState('')
   const [entries,         setEntries]         = useState([])
   const [isGenerating,    setIsGenerating]    = useState(false)
+  const [retryStatus,     setRetryStatus]     = useState('')   // live countdown text
+  const [cooldownSecs,    setCooldownSecs]    = useState(0)    // post-response cooldown
   const [showContext,     setShowContext]      = useState(false)
   const [isResetting,     setIsResetting]     = useState(false)
   const [apiError,        setApiError]        = useState(null)
 
-  const contextStats = getContextStats(messages)
-  const scrollRef    = useRef(null)
-  const inputRef     = useRef(null)
+  const contextStats   = getContextStats(messages)
+  const scrollRef      = useRef(null)
+  const inputRef       = useRef(null)
+  // Ref so handleSend always reads the latest messages without stale closure
+  const messagesRef    = useRef(messages)
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  // Post-response cooldown timer
+  const cooldownTimer  = useRef(null)
 
   // Load entries + kick off background embedding indexing
   useEffect(() => {
@@ -237,8 +272,9 @@ export default function EchoChamber() {
   // ── Send ───────────────────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const trimmed = input.trim()
-    if (!trimmed || isGenerating || !apiKey) return
+    if (!trimmed || isGenerating || cooldownSecs > 0 || !apiKey) return
     setApiError(null)
+    setRetryStatus('')
 
     let sessionId = activeSessionId
     if (!sessionId) {
@@ -247,7 +283,7 @@ export default function EchoChamber() {
       await refreshSessions()
     }
 
-    // Semantic search if embedding ready, otherwise fall back to 3 most recent
+    // Semantic search if embedding ready, else fall back to 3 most recent
     let context = []
     if (embedStatus === 'ready') {
       const results = await semanticSearch(trimmed, 5)
@@ -262,7 +298,7 @@ export default function EchoChamber() {
     setMessages((prev) => [
       ...prev,
       { role: 'user', text: trimmed, context },
-      { role: 'assistant', thinking: true, text: '' },
+      { role: 'assistant', thinking: true, text: '', statusText: 'Searching your memories…' },
     ])
     setInput('')
     setIsGenerating(true)
@@ -270,15 +306,26 @@ export default function EchoChamber() {
     await saveChatMessage({ sessionId, role: 'user', text: trimmed, contextIds }).catch(console.error)
 
     try {
-      const currentMessages = messages.filter((m) => !m.thinking)
+      // Use ref to always get latest messages — fixes stale closure bug
+      const currentMessages = messagesRef.current.filter((m) => !m.thinking)
       const { prompt, meta } = buildManagedPrompt(trimmed, currentMessages, context)
-
       if (meta.triggered) {
         console.info(`[ContextWindow] Summarised ${meta.summarised} turns, kept ${meta.keptVerbatim} verbatim`)
       }
 
-      // ── Gemini API call (replaces generate() worker call) ──────────────
-      const text = await generateWithGemini(apiKey, prompt)
+      // Live status callback — updates text inside the thinking bubble
+      const onStatus = (msg) => {
+        setRetryStatus(msg)
+        setMessages((prev) => {
+          const next = [...prev]
+          const idx  = next.findLastIndex((m) => m.thinking)
+          if (idx !== -1) next[idx] = { ...next[idx], statusText: msg }
+          return next
+        })
+      }
+
+      const text = await generateWithGemini(apiKey, prompt, onStatus)
+      setRetryStatus('')
 
       setMessages((prev) => {
         const next = [...prev]
@@ -297,22 +344,41 @@ export default function EchoChamber() {
         await renameChatSession(sessionId, autoTitle)
         await refreshSessions()
       }
+
+      // Post-response cooldown (4 s) — protects free-tier rate limit
+      let secs = 4
+      setCooldownSecs(secs)
+      cooldownTimer.current = setInterval(() => {
+        secs -= 1
+        setCooldownSecs(secs)
+        if (secs <= 0) clearInterval(cooldownTimer.current)
+      }, 1000)
+
     } catch (err) {
       const errMsg = err.message ?? 'Generation failed.'
       setApiError(errMsg)
+      setRetryStatus('')
       setMessages((prev) => {
         const next = [...prev]
         const idx  = next.findLastIndex((m) => m.thinking)
-        if (idx !== -1) next[idx] = { role: 'assistant', text: `⚠ ${errMsg}` }
+        if (idx !== -1) next[idx] = { role: 'assistant', text: `⚠ ${errMsg}`, isError: true }
         return next
       })
     } finally {
       setIsGenerating(false)
     }
-  }, [input, isGenerating, apiKey, activeSessionId, entries, messages, embedStatus, semanticSearch, sessions, refreshSessions])
+  }, [input, isGenerating, cooldownSecs, apiKey, activeSessionId, entries, embedStatus, semanticSearch, sessions, refreshSessions])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
+
+  // Auto-grow textarea up to 120px
+  const handleInputChange = (e) => {
+    setInput(e.target.value)
+    const el = e.target
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -429,10 +495,14 @@ export default function EchoChamber() {
                 <div className="px-5 py-2 text-xs flex items-center gap-2 shrink-0"
                   style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', color: '#b91c1c' }}>
                   <AlertTriangle size={12} />
-                  {apiError}
-                  <button onClick={() => setApiError(null)} className="ml-auto">
-                    <X size={12} />
+                  <span className="flex-1">{apiError}</span>
+                  <button
+                    onClick={() => { setApiError(null); handleSend() }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded font-medium"
+                    style={{ background: '#fee2e2', border: '1px solid #fca5a5' }}>
+                    <RefreshCw size={10} /> Retry
                   </button>
+                  <button onClick={() => setApiError(null)}><X size={12} /></button>
                 </div>
               )}
 
@@ -459,16 +529,31 @@ export default function EchoChamber() {
                         {msg.text}
                       </div>
                     ) : msg.thinking ? (
+                      /* Thinking bubble — shows live countdown during retries */
                       <div className="rounded-2xl rounded-tl-sm px-4 py-3 flex items-center gap-2"
                         style={{ background: '#f4ecd8', border: '1px solid #d4b896' }}>
-                        <Loader2 size={13} className="animate-spin" style={{ color: '#9a7550' }} />
-                        <span className="text-xs" style={{ color: '#9a7550' }}>Searching your memories…</span>
+                        {(msg.statusText || '').toLowerCase().includes('limit') || (msg.statusText || '').toLowerCase().includes('retry')
+                          ? <Clock size={13} style={{ color: '#c27a2a' }} />
+                          : <Loader2 size={13} className="animate-spin" style={{ color: '#9a7550' }} />}
+                        <span className="text-xs" style={{ color: '#9a7550' }}>
+                          {msg.statusText || 'Thinking…'}
+                        </span>
+                      </div>
+                    ) : msg.isError ? (
+                      /* Error bubble */
+                      <div className="max-w-lg rounded-2xl rounded-tl-sm px-4 py-3 flex items-start gap-2"
+                        style={{ background: '#fef2f2', border: '1px solid #fca5a5' }}>
+                        <AlertTriangle size={13} style={{ color: '#b91c1c', marginTop: 2, flexShrink: 0 }} />
+                        <p className="text-xs" style={{ color: '#b91c1c' }}>{msg.text.replace('⚠ ', '')}</p>
                       </div>
                     ) : (
-                      <div className="max-w-lg rounded-2xl rounded-tl-sm px-5 py-4 text-sm leading-relaxed"
+                      /* Normal AI response — rendered paragraph by paragraph */
+                      <div className="max-w-lg rounded-2xl rounded-tl-sm px-5 py-4 text-sm space-y-2"
                         style={{ background: '#f4ecd8', color: '#3b2a1a', border: '1px solid #d4b896',
                           fontFamily: '"Playfair Display", Georgia, serif', lineHeight: '1.8' }}>
-                        {msg.text}
+                        {msg.text.split('\n').filter(Boolean).map((para, pi) => (
+                          <p key={pi}>{para}</p>
+                        ))}
                       </div>
                     )}
 
@@ -500,23 +585,30 @@ export default function EchoChamber() {
                   ref={inputRef}
                   rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  disabled={isGenerating}
-                  placeholder="Ask your past self something…"
-                  className="flex-1 rounded-xl px-4 py-2.5 text-sm resize-none outline-none disabled:opacity-50"
+                  disabled={isGenerating || cooldownSecs > 0}
+                  placeholder={cooldownSecs > 0 ? `Ready in ${cooldownSecs}s…` : 'Ask your past self something…'}
+                  className="flex-1 rounded-xl px-4 py-2.5 text-sm resize-none outline-none transition-all"
                   style={{ background: '#f4ecd8', border: '1px solid #d4b896', color: '#3b2a1a',
-                    minHeight: '42px', maxHeight: '120px' }}
+                    minHeight: '42px', maxHeight: '120px',
+                    opacity: isGenerating || cooldownSecs > 0 ? 0.65 : 1 }}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim() || isGenerating}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 disabled:cursor-not-allowed"
-                  style={{ background: input.trim() && !isGenerating ? '#c27a2a' : '#e8d5b7', color: '#fff' }}
-                  aria-label="Send"
+                  disabled={!input.trim() || isGenerating || cooldownSecs > 0}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 disabled:cursor-not-allowed"
+                  style={{
+                    background: (!input.trim() || isGenerating || cooldownSecs > 0) ? '#e8d5b7' : '#c27a2a',
+                    color: '#fff',
+                  }}
+                  aria-label={cooldownSecs > 0 ? `Wait ${cooldownSecs}s` : 'Send'}
+                  title={cooldownSecs > 0 ? `Rate-limit cooldown: ${cooldownSecs}s remaining` : undefined}
                 >
                   {isGenerating
                     ? <Loader2 size={16} className="animate-spin" />
+                    : cooldownSecs > 0
+                    ? <span className="text-xs font-bold" style={{ color: '#9a7550' }}>{cooldownSecs}</span>
                     : <SendHorizonal size={16} />}
                 </button>
               </div>
